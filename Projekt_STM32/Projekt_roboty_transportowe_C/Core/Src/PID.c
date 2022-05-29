@@ -50,7 +50,7 @@ int16_t pid_calc(PID_t * pid, int16_t mv, int16_t dv) {
 
 	//I
 	i = pid->sum;
-	i += pid->dt_ms * pid->i * e;
+	i += pid->dt_ms * e / pid->i;
 	if (i > pid->PID_max_val)
 	i = pid->PID_max_val;
 	else if (i < pid->PID_min_val)

@@ -14,7 +14,19 @@ void motor_update_count(motor *m, TIM_HandleTypeDef *timer)
 int16_t motor_calculate_speed(motor *m, TIM_HandleTypeDef *timer, int16_t timer_hz)
 {
 	motor_update_count(m,timer);
-	m->speed = (int16_t)(((float)(m->pulse_count * timer_hz * SEC_IN_MIN)) / (m->resolution*MOT_RPM_TO_1000PROMILE));
+
+	m->speedlist[m->iterator] = (int16_t) ( ((float) (m->pulse_count * timer_hz * SEC_IN_MIN)) / (m->resolution*MOT_RPM_TO_1000PROMILE) );
+
+	m->iterator++;
+
+	if (m->iterator >= SMOOTHING) { m->iterator = 0; }
+
+	m->speed = 0;
+
+	for(int i=0; i<SMOOTHING;i++)
+	{
+		m->speed += m->speedlist[i];
+	}
 
 	if(m->DIRECTION == DIR_CCW)
 	{
@@ -35,6 +47,11 @@ void motor_init(motor *m, GPIO_TypeDef * DIR1_GPIO, GPIO_TypeDef * DIR2_GPIO,uin
 
 	m->pulse_count = 0;
 	m->speed = 0;
+	m->iterator = 0;
+	for(int i = 0; i<10;i++)
+	{
+		m->speedlist[i] = 0;
+	}
 }
 void set_motor_dir(motor *m, int16_t process)
 {

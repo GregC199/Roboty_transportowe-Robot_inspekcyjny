@@ -16,6 +16,7 @@
 #define DIR_CW 0
 #define DIR_CCW 1
 #define DIR_STOP 2
+#define SMOOTHING 10
 
 #include <stdint.h>
 #include "tim.h"
@@ -26,9 +27,11 @@ typedef struct
 	uint16_t       DIR_1_PIN;
 	uint16_t       DIR_2_PIN;
 	int16_t        DIRECTION;
-	float resolution;		//rozdzielczość silnika
-	int16_t pulse_count;		//zliczone impulsy
-	int16_t speed;				//obliczona prędkość silnika
+	int16_t        iterator;
+	int16_t        speedlist[SMOOTHING];
+	float 		   resolution;		//rozdzielczość silnika
+	int16_t 	   pulse_count;		//zliczone impulsy
+	int16_t 	   speed;			//obliczona prędkość silnika
 }motor;
 void motor_update_count(motor *m, TIM_HandleTypeDef *timer);
 int16_t motor_calculate_speed(motor *m, TIM_HandleTypeDef *timer, int16_t timer_hz);

@@ -125,6 +125,7 @@ int16_t I5_MA;
 int16_t I6_ONOFF;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim);
 int16_t to_process_range(int16_t input);
 int16_t to_communication_range(int16_t input, int16_t replacement);
 bool check_communication(int16_t input);
@@ -197,9 +198,9 @@ int main(void)
 
   //Pid inicjalizacja
   ms = (int16_t)1000/PID_HZ;
-  pid_init(&Pid_tyl_lewy, 3.0, 15.0, 0.0, ms,PID_POWER);
+  pid_init(&Pid_tyl_lewy, 0.5, 15.0, 0.0, ms,PID_POWER);
   pid_scaling(&Pid_tyl_lewy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
-  pid_init(&Pid_tyl_prawy, 3.0, 15.0, 0.0, ms,PID_POWER);
+  pid_init(&Pid_tyl_prawy, 0.5, 15.0, 0.0, ms,PID_POWER);
   pid_scaling(&Pid_tyl_prawy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
 
   //Motor inicjalizacja
@@ -213,12 +214,15 @@ int main(void)
   while (1)
   {
 
+	  //STEROWANIE KOLAMI
 	  if(PID_flaga == 1){
 		  PID_flaga = 0;
 
+		  //LEWE - PID OBLICZA NAWET W TRYBIE MANUALNYM
 		  pomiar_tyl_lewy = to_process_range(motor_calculate_speed(&mot_tyl_lewy, ENCODER_LEWY, PID_HZ));
 		  sterowanie_tyl_lewy = pid_calc(&Pid_tyl_lewy, pomiar_tyl_lewy, setpoint_tyl_lewy);
 
+		  //STEROWANIE DLA TRYBU AUTOMATYCZNEGO
 		  if(MA == 1){
 			  if (I1_V != 0){
 				  set_motor_dir(&mot_tyl_lewy,sterowanie_tyl_lewy);
@@ -231,9 +235,12 @@ int main(void)
 				  __HAL_TIM_SetCompare(PWM_TIMER, CH_PRZOD_LEWY,0);
 			  }
 		  }
+
+		  //PRAWE - PID OBLICZA NAWET W TRYBIE MANUALNYM
 		  pomiar_tyl_prawy = to_process_range(motor_calculate_speed(&mot_tyl_prawy, ENCODER_PRAWY, PID_HZ));
 		  sterowanie_tyl_prawy = pid_calc(&Pid_tyl_prawy, pomiar_tyl_prawy, setpoint_tyl_prawy);
 
+		  //STEROWANIE DLA TRYBU AUTOMATYCZNEGO
 		  if(MA == 1){
 			  if (I1_V != 0){
 				  set_motor_dir(&mot_tyl_prawy,sterowanie_tyl_prawy);
@@ -248,6 +255,7 @@ int main(void)
 		  }
 	  }
 
+	  //ODBIOR Z KOMUNIKACJI I OBROBKA DANYCH
 	  if(COMM_flaga == 1){
 
 		  COMM_flaga = 0;
@@ -260,16 +268,18 @@ int main(void)
 		  I3_PLCHLDR = to_communication_range(ibus_data[2],1500);
 		  I4_V_MAX = to_communication_range(ibus_data[3],2000);
 		  I5_MA = to_communication_range(ibus_data[4],0);
-		  if (I5_MA == 0){ibus_data[5] = 1000;}
+		  if (I5_MA == 0){ibus_data[5] = 1000;} 				//JEŚLI NIE MA TRYBU W ODPOWIEDNIM RANGE TO STOP
 		  I6_ONOFF = to_communication_range(ibus_data[5],1000);
 
+		  //SPROWADZENIE WARTOSCI DO BOOL
 		  OFF_ON = check_communication(I6_ONOFF);
 		  MA = check_communication(I5_MA);
 
+		  //JEŚLI WYŁĄCZONY TO TRYB MANUALNY NADPISUJACY ZEROWE STEROWANIA
 		  if (OFF_ON == 0){ MA = 0;}
 
 
-
+		  //WŁĄCZONY
 		  if (OFF_ON == 1){
 			  if (I1_V > I4_V_MAX){ I1_V = I4_V_MAX; }
 
@@ -279,12 +289,15 @@ int main(void)
 			  setpoint_tyl_prawy = I1_V;
 		  }
 
+		  //WYŁĄCZONY - WPISANIE ZER
 		  else{
 			  I1_V = 0;
 
 			  setpoint_tyl_lewy = I1_V;
 			  setpoint_tyl_prawy = I1_V;
 		  }
+
+		  //STEROWANIE DLA TRYBU MANUALNEGO
 		  if (MA == 0){
 			  set_motor_dir(&mot_tyl_lewy,I1_V);
 			  __HAL_TIM_SetCompare(PWM_TIMER, CH_TYL_LEWY,I1_V);
@@ -358,10 +371,10 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(huart == IBUS_UART)
-		ibus_reset_failsafe();
+	if(huart == IBUS_UART) { ibus_reset_failsafe();}
 }
 
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim)
@@ -374,34 +387,48 @@ void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim)
 		COMM_flaga = 1;
 	}
 }
-int16_t to_process_range(int16_t input){
+
+int16_t to_process_range(int16_t input)
+{
 	int16_t out = (int16_t)(((float)(input * Counter_20kHz_360))/1000.0);
+
 	if (out > Counter_20kHz_360) { out = Counter_20kHz_360; }
-	if (out < -Counter_20kHz_360){ out = -Counter_20kHz_360; }
+	else if (out < -Counter_20kHz_360) { out = -Counter_20kHz_360; }
+
 	return out;
 }
-int16_t to_communication_range(int16_t input, int16_t replacement){
+
+int16_t to_communication_range(int16_t input, int16_t replacement)
+{
 	int16_t out;
-	if (input < 1000){out = replacement;}
-	else if (input > 2000){out = replacement;}
-	else {out = input;}
+
+	if (input < 1000) { out = replacement;}
+	else if (input > 2000) { out = replacement;}
+	else { out = input;}
+
 	return out;
 }
-bool check_communication(int16_t input){
+
+bool check_communication(int16_t input)
+{
 	bool out;
-	if (input < 1050) {out = 0;}
-	else if (input > 1950) {out = 1;}
-	else {out = 0;}
+
+	if (input < 1050) { out = 0;}
+	else if (input > 1950) { out = 1;}
+	else { out = 0;}
+
 	return out;
 }
-int16_t to_DAC(int16_t input, float min, float max){
+
+int16_t to_DAC(int16_t input, float min, float max)
+{
 	int16_t out;
 
-	out = (int16_t)(((float)(input - 1000)/1000.0)*(max - min) + min);
+	out = (int16_t) ( ((float)(input - 1000) /1000.0) * ( max - min ) + min );
 
 	return out;
-
 }
+
 /* USER CODE END 4 */
 
 /**

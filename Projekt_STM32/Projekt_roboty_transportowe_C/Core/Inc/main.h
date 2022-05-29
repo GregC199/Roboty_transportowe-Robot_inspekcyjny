@@ -71,6 +71,8 @@ void Error_Handler(void);
 #define ENCODER_A_R_GPIO_Port GPIOA
 #define ENCODER_B_R_Pin GPIO_PIN_1
 #define ENCODER_B_R_GPIO_Port GPIOA
+#define DIR1_1_Pin GPIO_PIN_2
+#define DIR1_1_GPIO_Port GPIOA
 #define ADC1_Pin GPIO_PIN_3
 #define ADC1_GPIO_Port GPIOA
 #define SERWO_OUT_Pin GPIO_PIN_4
@@ -89,14 +91,12 @@ void Error_Handler(void);
 #define ENCODER_A_L_GPIO_Port GPIOA
 #define ENCODER_B_L_Pin GPIO_PIN_9
 #define ENCODER_B_L_GPIO_Port GPIOA
-#define DIR2_2_Pin GPIO_PIN_11
+#define DIR2_2_Pin GPIO_PIN_10
 #define DIR2_2_GPIO_Port GPIOA
-#define DIR2_1_Pin GPIO_PIN_12
+#define DIR2_1_Pin GPIO_PIN_11
 #define DIR2_1_GPIO_Port GPIOA
-#define DIR1_2_Pin GPIO_PIN_13
+#define DIR1_2_Pin GPIO_PIN_12
 #define DIR1_2_GPIO_Port GPIOA
-#define DIR1_1_Pin GPIO_PIN_14
-#define DIR1_1_GPIO_Port GPIOA
 #define PILOT_UART_RX_Pin GPIO_PIN_15
 #define PILOT_UART_RX_GPIO_Port GPIOA
 #define PILOT_UART_TX_Pin GPIO_PIN_3
