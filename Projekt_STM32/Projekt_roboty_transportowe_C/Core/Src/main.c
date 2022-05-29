@@ -31,6 +31,7 @@
 #include "ibus.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "PID.h"
 #include "MOT.h"
 
@@ -93,6 +94,7 @@ int16_t test = 10;
 
 bool odebranie;
 bool MA;
+bool OFF_ON;
 
 int8_t PID_flaga = 0;
 int8_t COMM_flaga = 0;
@@ -113,7 +115,7 @@ PID_t Pid_tyl_prawy;
 
 motor mot_tyl_lewy;
 motor mot_tyl_prawy;
-int16_t ms = 20;
+int16_t ms = 50;
 
 int16_t I1_V;
 int16_t I2_OMEGA;
@@ -124,6 +126,9 @@ int16_t I6_ONOFF;
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 int16_t to_process_range(int16_t input);
+int16_t to_communication_range(int16_t input, int16_t replacement);
+bool check_communication(int16_t input);
+int16_t to_DAC(int16_t input, float min, float max);
 
 /* USER CODE END 0 */
 
@@ -165,6 +170,7 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM6_Init();
+  MX_ADC1_Init();
   /* USER CODE BEGIN 2 */
   //INIT komunikacji ze zdalna aparatura
   ibus_init();
@@ -249,14 +255,22 @@ int main(void)
 		  odebranie = ibus_read(ibus_data);
 		  ibus_soft_failsafe(ibus_data, 10);
 
-		  I1_V = ibus_data[0];
-		  I2_OMEGA = ibus_data[1];
-		  I3_PLCHLDR = ibus_data[2];
-		  I4_V_MAX = ibus_data[3];
-		  I5_MA = ibus_data[4];
-		  I6_ONOFF = ibus_data[5];
+		  I1_V = to_communication_range(ibus_data[0], 1500);
+		  I2_OMEGA = to_communication_range(ibus_data[1],1500);
+		  I3_PLCHLDR = to_communication_range(ibus_data[2],1500);
+		  I4_V_MAX = to_communication_range(ibus_data[3],2000);
+		  I5_MA = to_communication_range(ibus_data[4],0);
+		  if (I5_MA == 0){ibus_data[5] = 1000;}
+		  I6_ONOFF = to_communication_range(ibus_data[5],1000);
 
-		  if (I6_ONOFF > 1800){
+		  OFF_ON = check_communication(I6_ONOFF);
+		  MA = check_communication(I5_MA);
+
+		  if (OFF_ON == 0){ MA = 0;}
+
+
+
+		  if (OFF_ON == 1){
 			  if (I1_V > I4_V_MAX){ I1_V = I4_V_MAX; }
 
 			  I1_V = to_process_range(2*(I1_V-1500));
@@ -364,6 +378,27 @@ int16_t to_process_range(int16_t input){
 	int16_t out = (int16_t)(((float)(input * Counter_20kHz_360))/1000.0);
 	if (out > Counter_20kHz_360) { out = Counter_20kHz_360; }
 	if (out < -Counter_20kHz_360){ out = -Counter_20kHz_360; }
+	return out;
+}
+int16_t to_communication_range(int16_t input, int16_t replacement){
+	int16_t out;
+	if (input < 1000){out = replacement;}
+	else if (input > 2000){out = replacement;}
+	else {out = input;}
+	return out;
+}
+bool check_communication(int16_t input){
+	bool out;
+	if (input < 1050) {out = 0;}
+	else if (input > 1950) {out = 1;}
+	else {out = 0;}
+	return out;
+}
+int16_t to_DAC(int16_t input, float min, float max){
+	int16_t out;
+
+	out = (int16_t)(((float)(input - 1000)/1000.0)*(max - min) + min);
+
 	return out;
 
 }
