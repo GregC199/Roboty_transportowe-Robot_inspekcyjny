@@ -1,0 +1,9 @@
+main.c:140:5:main	16	static
+main.c:329:6:SystemClock_Config	96	static
+main.c:375:6:HAL_UART_RxCpltCallback	16	static
+main.c:380:6:HAL_TIM_PeriodElapsedCallback	16	static
+main.c:391:9:to_process_range	24	static
+main.c:401:9:to_communication_range	24	static
+main.c:412:6:check_communication	24	static
+main.c:423:9:to_DAC	40	static
+main.c:438:6:Error_Handler	4	static
