@@ -35,13 +35,11 @@ int16_t motor_calculate_speed(motor *m, TIM_HandleTypeDef *timer, int16_t timer_
 
 	return m->speed;
 }
-void motor_init(motor *m, GPIO_TypeDef * DIR1_GPIO, GPIO_TypeDef * DIR2_GPIO,uint16_t DIR1_PIN, uint16_t DIR2_PIN)
+void motor_init(motor *m, GPIO_TypeDef * DIR_GPIO_IN,uint16_t DIR_PIN_IN)
 {
-	m->DIR_1_PIN = DIR1_PIN;
-	m->DIR_2_PIN = DIR2_PIN;
+	m->DIR_PIN = DIR_PIN_IN;
 
-	m->DIR_1_GPIO = DIR1_GPIO;
-	m->DIR_2_GPIO = DIR2_GPIO;
+	m->DIR_GPIO = DIR_GPIO_IN;
 
 	m->resolution = (ENCODER_RESOLUTION * TIMER_COUNTS * GEAR_RATIO);
 
@@ -55,21 +53,14 @@ void motor_init(motor *m, GPIO_TypeDef * DIR1_GPIO, GPIO_TypeDef * DIR2_GPIO,uin
 }
 void set_motor_dir(motor *m, int16_t process)
 {
-	if (process == 0){
-		HAL_GPIO_WritePin(m->DIR_1_GPIO, m->DIR_1_PIN, 0);
-		HAL_GPIO_WritePin(m->DIR_2_GPIO, m->DIR_2_PIN, 0);
-		m->DIRECTION = DIR_STOP;
-	}
-	else if(process > 0)
+	if(process > 0)
 	{
-		HAL_GPIO_WritePin(m->DIR_1_GPIO, m->DIR_1_PIN, 1);
-		HAL_GPIO_WritePin(m->DIR_2_GPIO, m->DIR_2_PIN, 0);
+		HAL_GPIO_WritePin(m->DIR_GPIO, m->DIR_PIN, 0);
 		m->DIRECTION = DIR_CW;
 	}
 	else if(process < 0)
 	{
-		HAL_GPIO_WritePin(m->DIR_1_GPIO, m->DIR_1_PIN, 0);
-		HAL_GPIO_WritePin(m->DIR_2_GPIO, m->DIR_2_PIN, 1);
+		HAL_GPIO_WritePin(m->DIR_GPIO, m->DIR_PIN, 1);
 		m->DIRECTION = DIR_CCW;
 	}
 }

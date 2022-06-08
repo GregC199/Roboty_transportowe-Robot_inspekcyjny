@@ -25,7 +25,6 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 //https://github.com/mokhwasomssi/stm32_hal_ibus
-#include "ibus.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -52,12 +51,17 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-#define IBUS_UART (&huart2)
-#define IBUS_USER_CHANNELS 6
+#define PC_UART (&huart2)
+#define PC_RECV_LEN 5
+#define PC_SEND_LEN 21
 
-#define ENCODER_LEWY (&htim1)
-#define ENCODER_PRAWY (&htim2)
-#define PWM_TIMER (&htim3)
+#define MCU_UART (&huart1)
+#define MCU_LEN 14
+
+#define ENCODER_LEWY (&htim2)
+#define ENCODER_PRAWY (&htim3)
+#define PWM_TIMER_SILNIKI (&htim1)
+#define PWM_TIMER_SERWO (&htim17)
 #define PID_TIMER (&htim6)
 #define COMM_TIMER (&htim7)
 #define COMM_HZ 10
@@ -73,6 +77,12 @@
 #define CH_PRZOD_LEWY                      0x00000008U                          /*!< Capture/compare channel 3 identifier      */
 #define CH_PRZOD_PRAWY 					   0x0000000CU
 
+#define CH_SERWO                        0x00000000U
+
+#define KP 0.5
+#define TI 5.0
+#define TD 0.0
+
 //DEFINES INSIDE MOT.h OF MOTOR PROPERTIES
 
 /* USER CODE END PV */
@@ -85,19 +95,24 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-int8_t Wiadomosc[200];
-int16_t Rozmiar;
-int16_t test = 10;
+//int8_t Wiadomosc[200];
+//int16_t Rozmiar;
+//int16_t test = 10;
 
-bool odebranie;
-bool MA;
-bool OFF_ON;
+bool MA = 0;
+bool OFF_ON = 1;
 
 int8_t PID_flaga = 0;
 int8_t COMM_flaga = 0;
 
-uint16_t ibus_data[IBUS_USER_CHANNELS];
+uint8_t mcu_data[MCU_LEN];
+uint8_t pc_recv_data[PC_RECV_LEN];
+uint8_t pc_send_data[PC_SEND_LEN];
 
+uint16_t recv_pc  = 0;
+uint16_t recv_mcu  = 0;
+
+//TYL
 int16_t sterowanie_tyl_lewy = 0;
 int16_t sterowanie_tyl_prawy = 0;
 
@@ -112,21 +127,38 @@ PID_t Pid_tyl_prawy;
 
 motor mot_tyl_lewy;
 motor mot_tyl_prawy;
+
+//Przod
+int16_t sterowanie_przod_lewy = 0;
+int16_t sterowanie_przod_prawy = 0;
+
+int16_t pomiar_przod_lewy = 0;
+int16_t pomiar_przod_prawy = 0;
+
+int16_t setpoint_przod_lewy = 0;
+int16_t setpoint_przod_prawy = 0;
+
+PID_t Pid_przod_lewy;
+PID_t Pid_przod_prawy;
+
+motor mot_przod_lewy;
+motor mot_przod_prawy;
+
 int16_t ms = 50;
 
-int16_t I1_V;
-int16_t I2_OMEGA;
-int16_t I3_PLCHLDR;
-int16_t I4_V_MAX;
-int16_t I5_MA;
-int16_t I6_ONOFF;
+int16_t I1_V = 0;
+int16_t I2_OMEGA = 0;
+int16_t I4_Vmax = 0;
 
-void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
+int16_t pomiar_serwo_kat = 0;
+int16_t sterowanie_serwo_kat = 0;
+
+//void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim);
 int16_t to_process_range(int16_t input);
-int16_t to_communication_range(int16_t input, int16_t replacement);
-bool check_communication(int16_t input);
-int16_t to_DAC(int16_t input, float min, float max);
+//int16_t to_communication_range(int16_t input, int16_t replacement);
+//bool check_communication(int16_t input);
+//int16_t to_DAC(int16_t input, float min, float max);
 
 /* USER CODE END 0 */
 
@@ -164,11 +196,11 @@ int main(void)
   MX_TIM1_Init();
   MX_TIM2_Init();
   MX_TIM6_Init();
-  MX_TIM16_Init();
   MX_TIM17_Init();
+  MX_USART2_UART_Init();
   /* USER CODE BEGIN 2 */
   //INIT komunikacji ze zdalna aparatura
-  ibus_init();
+  //ibus_init();
 
   //timery dla PID i komunikacji z PC
   HAL_TIM_Base_Start_IT(PID_TIMER);
@@ -192,14 +224,21 @@ int main(void)
 
   //Pid inicjalizacja
   ms = (int16_t)1000/PID_HZ;
-  pid_init(&Pid_tyl_lewy, 0.5, 15.0, 0.0, ms,PID_POWER);
+  pid_init(&Pid_tyl_lewy, KP, TI, TD, ms,PID_POWER);
   pid_scaling(&Pid_tyl_lewy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
-  pid_init(&Pid_tyl_prawy, 0.5, 15.0, 0.0, ms,PID_POWER);
+  pid_init(&Pid_tyl_prawy, KP, TI, TD, ms,PID_POWER);
   pid_scaling(&Pid_tyl_prawy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
+  pid_init(&Pid_przod_lewy, KP, TI, TD, ms,PID_POWER);
+  pid_scaling(&Pid_przod_lewy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
+  pid_init(&Pid_przod_prawy, KP, TI, TD, ms,PID_POWER);
+  pid_scaling(&Pid_przod_prawy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
 
   //Motor inicjalizacja
-  motor_init(&mot_tyl_lewy,DIR1_1_GPIO_Port,DIR1_2_GPIO_Port,DIR1_1_Pin,DIR1_2_Pin);
-  motor_init(&mot_tyl_prawy,DIR2_1_GPIO_Port,DIR2_2_GPIO_Port,DIR2_1_Pin,DIR2_2_Pin);
+  motor_init(&mot_tyl_lewy,DIR_LT_GPIO_Port,DIR_LT_Pin);
+  motor_init(&mot_tyl_prawy,DIR_PT_GPIO_Port,DIR_PT_Pin);
+  motor_init(&mot_przod_lewy,DIR_LP_GPIO_Port,DIR_LP_Pin);
+  motor_init(&mot_przod_prawy,DIR_PP_GPIO_Port,DIR_PP_Pin);
+
 
   /* USER CODE END 2 */
 
@@ -208,6 +247,53 @@ int main(void)
   while (1)
   {
 
+	  if(PID_flaga == 1){
+
+		  PID_flaga = 0;
+
+		  //LEWE TYL - PID OBLICZA NAWET W TRYBIE MANUALNYM
+		  pomiar_tyl_lewy = to_process_range(motor_calculate_speed(&mot_tyl_lewy, ENCODER_LEWY, PID_HZ));
+		  sterowanie_tyl_lewy = pid_calc(&Pid_tyl_lewy, pomiar_tyl_lewy, setpoint_tyl_lewy);
+
+		  //PRZOD
+		  sterowanie_przod_lewy = pid_calc(&Pid_przod_lewy, pomiar_przod_lewy, setpoint_przod_lewy);
+
+		  //PRAWE TYL
+		  pomiar_tyl_prawy = to_process_range(motor_calculate_speed(&mot_tyl_prawy, ENCODER_PRAWY, PID_HZ));
+		  sterowanie_tyl_prawy = pid_calc(&Pid_tyl_prawy, pomiar_tyl_prawy, setpoint_tyl_prawy);
+
+		  //PRZOD
+		  sterowanie_przod_prawy = pid_calc(&Pid_przod_prawy, pomiar_przod_prawy, setpoint_przod_prawy);
+
+		  //STEROWANIE DLA TRYBU AUTOMATYCZNEGO
+		  //if(MA == 1){  TU I NA KONCU ZAKOMENTOWANE
+		  if (I1_V != 0){
+
+			  set_motor_dir(&mot_tyl_lewy,sterowanie_tyl_lewy);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_TYL_LEWY,abs(sterowanie_tyl_lewy));
+			  set_motor_dir(&mot_przod_lewy,sterowanie_przod_lewy);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_PRZOD_LEWY,abs(sterowanie_przod_lewy));
+
+			  set_motor_dir(&mot_tyl_prawy,sterowanie_tyl_prawy);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_TYL_PRAWY,abs(sterowanie_tyl_prawy));
+			  set_motor_dir(&mot_przod_prawy,sterowanie_przod_prawy);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_PRZOD_PRAWY,abs(sterowanie_przod_prawy));
+		  }
+		  else{
+			  set_motor_dir(&mot_tyl_lewy,0);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_TYL_LEWY,0);
+			  set_motor_dir(&mot_przod_lewy,0);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_PRZOD_LEWY,0);
+
+			  set_motor_dir(&mot_tyl_prawy,0);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_TYL_PRAWY,0);
+			  set_motor_dir(&mot_przod_prawy,0);
+			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_PRZOD_PRAWY,0);
+		  }
+		  //}
+	  }
+
+	  /*
 	  //STEROWANIE KOLAMI
 	  if(PID_flaga == 1){
 		  PID_flaga = 0;
@@ -247,8 +333,128 @@ int main(void)
 				  __HAL_TIM_SetCompare(PWM_TIMER, CH_PRZOD_PRAWY,0);
 			  }
 		  }
-	  }
+	  } */
 
+	  if(COMM_flaga == 1){
+		  COMM_flaga = 0;
+
+		  //Odbior danych
+		  recv_mcu = HAL_UART_Receive(MCU_UART,mcu_data,MCU_LEN,100);
+		  recv_pc = HAL_UART_Receive(PC_UART,pc_recv_data,PC_RECV_LEN,100);
+
+		  //Przetwarzanie warunkow dla OFF ON oraz MA
+		  if(mcu_data[0] == 1){OFF_ON = 1;}
+		  else{OFF_ON = 0;}
+
+		  if(mcu_data[1] == 1){MA = 1;}
+		  else if(mcu_data[1] == 0){MA = 0;}
+		  else
+		  {
+			  MA = 0;
+			  OFF_ON = 0;
+		  }
+
+		  //Odczyt pomiarow z enkoderow na masterze
+		  pomiar_przod_lewy = (int16_t)((mcu_data[3] << 8) | mcu_data[2]);
+		  pomiar_przod_prawy = (int16_t)((mcu_data[5] << 8) | mcu_data[4]);
+		  //Zwrotka z serwo i maksymalna predkosc
+		  pomiar_serwo_kat = (int16_t)((mcu_data[7] << 8) | mcu_data[6]);
+		  I4_Vmax = (int16_t)((mcu_data[13] << 8) | mcu_data[12]);
+
+		  //Jeśli MA == 0 to odczyt z PILOTA z mastera
+		  if(MA == 0){
+			  I1_V = (int16_t)((mcu_data[9] << 8) | mcu_data[8]);
+			  I2_OMEGA = (int16_t)((mcu_data[11] << 8) | mcu_data[10]);
+		  }
+
+		  //Jeśli MA == 1 to odczyt z PC
+		  if(MA == 1){
+
+			  I1_V = (int16_t)((pc_recv_data[2] << 8) | pc_recv_data[1]);
+			  I2_OMEGA = (int16_t)((pc_recv_data[4] << 8) | pc_recv_data[3]);
+
+			  if(pc_recv_data[0] == 1){OFF_ON = 1;}
+			  else{OFF_ON = 0;}
+		  }
+
+		  if(Stop_AW == 1){
+			  OFF_ON = 0;
+			  MA = 0;
+		  }
+
+		  if(OFF_ON == 0){
+			  I1_V = 0;
+			  I2_OMEGA = 0;
+
+			  HAL_GPIO_WritePin(WYLACZNIK_GPIO_Port, WYLACZNIK_Pin, 1);
+		  }
+		  else if(OFF_ON == 1){
+			  HAL_GPIO_WritePin(WYLACZNIK_GPIO_Port, WYLACZNIK_Pin, 0);
+		  }
+
+		  //Sterowanie serwonapędem oraz sprawdzenie ograniczeń
+		  if (OFF_ON == 1){
+			  if (krancowka == 1){
+				  if (sterowanie_serwo_kat > 0){
+					  I2_OMEGA = sterowanie_serwo_kat - 1;
+				  }
+				  else{
+					  I2_OMEGA = sterowanie_serwo_kat + 1;
+				  }
+			  }
+
+			  //Sprawdzenie ograniczeń predkosci
+			  if (I1_V > 0){
+				  if(I1_V > I4_Vmax){
+					  I1_V = I4_Vmax;
+				  }
+			  }
+			  else if(I1_V < -I4_Vmax){
+				  I1_V = -I4_Vmax;
+			  }
+		  }
+		  __HAL_TIM_SetCompare(PWM_TIMER_SERWO, CH_SERWO,I2_OMEGA);
+		  sterowanie_serwo_kat = I2_OMEGA;
+
+		  setpoint_przod_lewy = I1_V;
+		  setpoint_przod_prawy = I1_V;
+		  setpoint_tyl_lewy = I1_V;
+		  setpoint_tyl_prawy = I1_V;
+
+
+
+		  //Transmisja danych UARTEM do PC
+		  if(OFF_ON == 1){pc_send_data[0] = 1;}
+		  else{pc_send_data[0] = 0;}
+		  pc_send_data[1] = (uint8_t)pomiar_tyl_lewy;
+		  pc_send_data[2] = (uint8_t)(pomiar_tyl_lewy >> 8);
+		  pc_send_data[3] = (uint8_t)pomiar_tyl_prawy;
+		  pc_send_data[4] = (uint8_t)(pomiar_tyl_prawy >> 8);
+		  pc_send_data[5] = (uint8_t)pomiar_przod_lewy;
+		  pc_send_data[6] = (uint8_t)(pomiar_przod_lewy >> 8);
+		  pc_send_data[7] = (uint8_t)pomiar_przod_prawy;
+		  pc_send_data[8] = (uint8_t)(pomiar_przod_prawy >> 8);
+		  pc_send_data[9] = (uint8_t)pomiar_serwo_kat;
+		  pc_send_data[10] = (uint8_t)(pomiar_serwo_kat >> 8);
+		  pc_send_data[11] = (uint8_t)sterowanie_tyl_lewy;
+		  pc_send_data[12] = (uint8_t)(sterowanie_tyl_lewy >> 8);
+		  pc_send_data[13] = (uint8_t)sterowanie_tyl_prawy;
+		  pc_send_data[14] = (uint8_t)(sterowanie_tyl_prawy >> 8);
+		  pc_send_data[15] = (uint8_t)sterowanie_przod_lewy;
+		  pc_send_data[16] = (uint8_t)(sterowanie_przod_lewy >> 8);
+		  pc_send_data[17] = (uint8_t)sterowanie_przod_prawy;
+		  pc_send_data[18] = (uint8_t)(sterowanie_przod_prawy >> 8);
+		  pc_send_data[19] = (uint8_t)sterowanie_serwo_kat;
+		  pc_send_data[20] = (uint8_t)(sterowanie_serwo_kat >> 8);
+		  if(MA == 1){pc_send_data[21] = 1;}
+		  else if(MA == 0){
+			  pc_send_data[21] = 0;
+		  }
+		  else{pc_send_data[21] = 3;}
+		  HAL_UART_Transmit(PC_UART, pc_send_data, PC_SEND_LEN, 100);
+
+	  }
+	  /*
 	  //ODBIOR Z KOMUNIKACJI I OBROBKA DANYCH
 	  if(COMM_flaga == 1){
 
@@ -269,11 +475,11 @@ int main(void)
 		  OFF_ON = check_communication(I6_ONOFF);
 		  MA = check_communication(I5_MA);
 
-		  //JEŚLI WY�?ĄCZONY TO TRYB MANUALNY NADPISUJACY ZEROWE STEROWANIA
+		  //JEŚLI WY�?ĄCZONY TO TRYB MANUALNY NADPISUJACY ZEROWE STEROWANIA
 		  if (OFF_ON == 0){ MA = 0;}
 
 
-		  //W�?ĄCZONY
+		  //W�?ĄCZONY
 		  if (OFF_ON == 1){
 			  if (I1_V > I4_V_MAX){ I1_V = I4_V_MAX; }
 
@@ -283,7 +489,7 @@ int main(void)
 			  setpoint_tyl_prawy = I1_V;
 		  }
 
-		  //WY�?ĄCZONY - WPISANIE ZER
+		  //WY�?ĄCZONY - WPISANIE ZER
 		  else{
 			  I1_V = 0;
 
@@ -306,7 +512,7 @@ int main(void)
 	  }
 
 
-	/*Rozmiar = sprintf((char *)Wiadomosc, "czesc:%d\n", test);
+	Rozmiar = sprintf((char *)Wiadomosc, "czesc:%d\n", test);
 	HAL_UART_Transmit(&huart1, (uint8_t*) Wiadomosc,  Rozmiar, 100);*/
 
     /* USER CODE END WHILE */
@@ -363,11 +569,11 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-
+/*
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-	if(huart == IBUS_UART) { ibus_reset_failsafe();}
-}
+	//if(huart == IBUS_UART) { ibus_reset_failsafe();}
+}*/
 
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim)
 {
@@ -389,7 +595,7 @@ int16_t to_process_range(int16_t input)
 
 	return out;
 }
-
+/*
 int16_t to_communication_range(int16_t input, int16_t replacement)
 {
 	int16_t out;
@@ -419,7 +625,7 @@ int16_t to_DAC(int16_t input, float min, float max)
 	out = (int16_t) ( ((float)(input - 1000) /1000.0) * ( max - min ) + min );
 
 	return out;
-}
+}*/
 
 /* USER CODE END 4 */
 

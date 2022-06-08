@@ -22,10 +22,8 @@
 #include "tim.h"
 typedef struct
 {
-	GPIO_TypeDef * DIR_1_GPIO;
-	GPIO_TypeDef * DIR_2_GPIO;
-	uint16_t       DIR_1_PIN;
-	uint16_t       DIR_2_PIN;
+	GPIO_TypeDef * DIR_GPIO;
+	uint16_t       DIR_PIN;
 	int16_t        DIRECTION;
 	int16_t        iterator;
 	int16_t        speedlist[SMOOTHING];
@@ -35,6 +33,6 @@ typedef struct
 }motor;
 void motor_update_count(motor *m, TIM_HandleTypeDef *timer);
 int16_t motor_calculate_speed(motor *m, TIM_HandleTypeDef *timer, int16_t timer_hz);
-void motor_init(motor *m, GPIO_TypeDef * DIR1_GPIO, GPIO_TypeDef * DIR2_GPIO,uint16_t DIR1_PIN, uint16_t DIR2_PIN);
+void motor_init(motor *m, GPIO_TypeDef * DIR_GPIO_IN,uint16_t DIR_PIN_IN);
 void set_motor_dir(motor *m, int16_t process);
 #endif /* INC_MOT_H_ */

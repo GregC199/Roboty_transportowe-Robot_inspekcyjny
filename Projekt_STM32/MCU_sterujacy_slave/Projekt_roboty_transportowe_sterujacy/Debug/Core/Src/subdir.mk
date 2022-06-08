@@ -7,11 +7,7 @@
 C_SRCS += \
 ../Core/Src/MOT.c \
 ../Core/Src/PID.c \
-../Core/Src/adc.c \
-../Core/Src/dac.c \
-../Core/Src/dma.c \
 ../Core/Src/gpio.c \
-../Core/Src/ibus.c \
 ../Core/Src/main.c \
 ../Core/Src/stm32f3xx_hal_msp.c \
 ../Core/Src/stm32f3xx_it.c \
@@ -24,11 +20,7 @@ C_SRCS += \
 OBJS += \
 ./Core/Src/MOT.o \
 ./Core/Src/PID.o \
-./Core/Src/adc.o \
-./Core/Src/dac.o \
-./Core/Src/dma.o \
 ./Core/Src/gpio.o \
-./Core/Src/ibus.o \
 ./Core/Src/main.o \
 ./Core/Src/stm32f3xx_hal_msp.o \
 ./Core/Src/stm32f3xx_it.o \
@@ -41,11 +33,7 @@ OBJS += \
 C_DEPS += \
 ./Core/Src/MOT.d \
 ./Core/Src/PID.d \
-./Core/Src/adc.d \
-./Core/Src/dac.d \
-./Core/Src/dma.d \
 ./Core/Src/gpio.d \
-./Core/Src/ibus.d \
 ./Core/Src/main.d \
 ./Core/Src/stm32f3xx_hal_msp.d \
 ./Core/Src/stm32f3xx_it.d \
@@ -63,7 +51,7 @@ Core/Src/%.o: ../Core/Src/%.c Core/Src/subdir.mk
 clean: clean-Core-2f-Src
 
 clean-Core-2f-Src:
-	-$(RM) ./Core/Src/MOT.d ./Core/Src/MOT.o ./Core/Src/PID.d ./Core/Src/PID.o ./Core/Src/adc.d ./Core/Src/adc.o ./Core/Src/dac.d ./Core/Src/dac.o ./Core/Src/dma.d ./Core/Src/dma.o ./Core/Src/gpio.d ./Core/Src/gpio.o ./Core/Src/ibus.d ./Core/Src/ibus.o ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/stm32f3xx_hal_msp.d ./Core/Src/stm32f3xx_hal_msp.o ./Core/Src/stm32f3xx_it.d ./Core/Src/stm32f3xx_it.o ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/system_stm32f3xx.d ./Core/Src/system_stm32f3xx.o ./Core/Src/tim.d ./Core/Src/tim.o ./Core/Src/usart.d ./Core/Src/usart.o
+	-$(RM) ./Core/Src/MOT.d ./Core/Src/MOT.o ./Core/Src/PID.d ./Core/Src/PID.o ./Core/Src/gpio.d ./Core/Src/gpio.o ./Core/Src/main.d ./Core/Src/main.o ./Core/Src/stm32f3xx_hal_msp.d ./Core/Src/stm32f3xx_hal_msp.o ./Core/Src/stm32f3xx_it.d ./Core/Src/stm32f3xx_it.o ./Core/Src/syscalls.d ./Core/Src/syscalls.o ./Core/Src/sysmem.d ./Core/Src/sysmem.o ./Core/Src/system_stm32f3xx.d ./Core/Src/system_stm32f3xx.o ./Core/Src/tim.d ./Core/Src/tim.o ./Core/Src/usart.d ./Core/Src/usart.o
 
 .PHONY: clean-Core-2f-Src
 

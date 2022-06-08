@@ -1,4 +1,4 @@
 MOT.c:9:6:motor_update_count	16	static
 MOT.c:14:9:motor_calculate_speed	40	static
 MOT.c:38:6:motor_init	32	static
-MOT.c:56:6:set_motor_dir	16	static
+MOT.c:54:6:set_motor_dir	16	static
