@@ -66,7 +66,7 @@
 #define PID_TIMER (&htim6)
 #define COMM_TIMER (&htim7)
 #define COMM_HZ 10
-#define PID_HZ 20
+#define PID_HZ 10
 
 #define CW 0
 #define CCW 1
@@ -430,11 +430,10 @@ int main(void)
 			  else{sterowanie_serwo_kat = I2_OMEGA;}
 
 			  //Sprawdzenie ograniczeń predkosci
-			  if (I1_V > 0){
-				  if(I1_V > I4_Vmax){
-					  I1_V = I4_Vmax;
 
-				  }
+			  if(I1_V > I4_Vmax){
+				  I1_V = I4_Vmax;
+
 			  }
 			  else if(I1_V < -I4_Vmax){
 				  I1_V = -I4_Vmax;
