@@ -60,14 +60,14 @@ void Error_Handler(void);
 #define Hz100 99
 #define Hz20 499
 #define Hz10 999
-#define Pre_20k_360 9
+#define Pre_20k_360 19
+#define UART_115 115200
 #define Pre_10kHz 7199
 #define Pre_10k 7199
 #define UART_SPEED_MCU 921600
 #define Hz1000 9
 #define Counter_20kHz_360 359
 #define Counter_10kHz_1 9999
-#define UART_115 115200
 #define UART_230 230400
 #define STOP_AW_Pin GPIO_PIN_1
 #define STOP_AW_GPIO_Port GPIOF
@@ -100,6 +100,8 @@ void Error_Handler(void);
 #define PWM3_LP_GPIO_Port GPIOA
 #define PWM4_PP_Pin GPIO_PIN_11
 #define PWM4_PP_GPIO_Port GPIOA
+#define DIR_SERWO_Pin GPIO_PIN_12
+#define DIR_SERWO_GPIO_Port GPIOA
 #define WYLACZNIK_Pin GPIO_PIN_15
 #define WYLACZNIK_GPIO_Port GPIOA
 #define KRANCOWKA_1_Pin GPIO_PIN_3

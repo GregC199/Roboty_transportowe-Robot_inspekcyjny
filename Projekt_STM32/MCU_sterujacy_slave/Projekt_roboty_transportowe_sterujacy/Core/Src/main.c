@@ -27,6 +27,7 @@
 //https://github.com/mokhwasomssi/stm32_hal_ibus
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include <stdbool.h>
 #include "PID.h"
 #include "MOT.h"
@@ -80,9 +81,15 @@
 #define CH_SERWO                        0x00000000U
 
 #define KP 0.5
-#define TI 5.0
+#define TI 2.0
 #define TD 0.0
 
+#define L1 43.0
+#define L2 10.0
+#define SERWO_SCALE_MAX 25
+#define LEWE_KOLO 0
+#define PRAWE_KOLO 1
+#define L_ADD 50
 //DEFINES INSIDE MOT.h OF MOTOR PROPERTIES
 
 /* USER CODE END PV */
@@ -102,8 +109,12 @@ void SystemClock_Config(void);
 bool MA = 0;
 bool OFF_ON = 1;
 
+bool krancowka = 0;
+bool STOP_AW = 0;
+
 int8_t PID_flaga = 0;
 int8_t COMM_flaga = 0;
+int8_t UART_flaga = 0;
 
 uint8_t mcu_data[MCU_LEN];
 uint8_t pc_recv_data[PC_RECV_LEN];
@@ -111,6 +122,9 @@ uint8_t pc_send_data[PC_SEND_LEN];
 
 uint16_t recv_pc  = 0;
 uint16_t recv_mcu  = 0;
+
+float r1;
+float r2;
 
 //TYL
 int16_t sterowanie_tyl_lewy = 0;
@@ -156,6 +170,7 @@ int16_t sterowanie_serwo_kat = 0;
 //void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart);
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim);
 int16_t to_process_range(int16_t input);
+int16_t przelicz_kat(int16_t setpoint, bool L_P);
 //int16_t to_communication_range(int16_t input, int16_t replacement);
 //bool check_communication(int16_t input);
 //int16_t to_DAC(int16_t input, float min, float max);
@@ -205,22 +220,15 @@ int main(void)
   //timery dla PID i komunikacji z PC
   HAL_TIM_Base_Start_IT(PID_TIMER);
   HAL_TIM_Base_Start_IT(COMM_TIMER);
-
-  //timer PWM i zmienna sterujaca
-  /*TIM_OC_InitTypeDef oc;
-  oc.OCMode = TIM_OCMODE_PWM2;
-  oc.Pulse = 0;
-  oc.OCPolarity = TIM_OCPOLARITY_HIGH;
-  oc.OCNPolarity = TIM_OCNPOLARITY_LOW;
-  oc.OCFastMode = TIM_OCFAST_ENABLE;
-  oc.OCIdleState = TIM_OCIDLESTATE_SET;
-  oc.OCNIdleState = TIM_OCNIDLESTATE_RESET;
-
-  HAL_TIM_PWM_ConfigChannel(PWM_TIMER, &oc, CH_TYL_LEWY);
-  HAL_TIM_PWM_ConfigChannel(PWM_TIMER, &oc, CH_TYL_PRAWY);
-  HAL_TIM_PWM_ConfigChannel(PWM_TIMER, &oc, CH_PRZOD_LEWY);
-  HAL_TIM_PWM_ConfigChannel(PWM_TIMER, &oc, CH_PRZOD_PRAWY);*/
-
+  HAL_TIM_Encoder_Start(ENCODER_LEWY, TIM_CHANNEL_ALL);
+  HAL_TIM_Encoder_Start(ENCODER_PRAWY, TIM_CHANNEL_ALL);
+  HAL_TIM_PWM_Start(PWM_TIMER_SILNIKI, TIM_CHANNEL_1);
+  HAL_TIM_PWM_Start(PWM_TIMER_SILNIKI, TIM_CHANNEL_2);
+  HAL_TIM_PWM_Start(PWM_TIMER_SILNIKI, TIM_CHANNEL_3);
+  HAL_TIM_PWM_Start(PWM_TIMER_SILNIKI, TIM_CHANNEL_4);
+  HAL_TIM_PWM_Start(PWM_TIMER_SERWO, TIM_CHANNEL_1);
+  __HAL_UART_ENABLE_IT(MCU_UART, UART_IT_RXNE);  // Interrupt Enable
+  __HAL_UART_ENABLE_IT(MCU_UART, UART_IT_TC);
 
   //Pid inicjalizacja
   ms = (int16_t)1000/PID_HZ;
@@ -339,8 +347,14 @@ int main(void)
 		  COMM_flaga = 0;
 
 		  //Odbior danych
-		  recv_mcu = HAL_UART_Receive(MCU_UART,mcu_data,MCU_LEN,100);
-		  recv_pc = HAL_UART_Receive(PC_UART,pc_recv_data,PC_RECV_LEN,100);
+		  if(UART_flaga == 1)
+		  {
+			  UART_flaga = 0;
+			  //recv_mcu = HAL_UART_Receive_IT(MCU_UART,mcu_data,sizeof(mcu_data));
+		  }
+		  recv_mcu = HAL_UART_Receive_IT(MCU_UART,mcu_data,sizeof(mcu_data));
+		  //recv_mcu = HAL_UART_Receive(MCU_UART,mcu_data,sizeof(mcu_data),100);
+		  recv_pc = HAL_UART_Receive(PC_UART,pc_recv_data,PC_RECV_LEN,200);
 
 		  //Przetwarzanie warunkow dla OFF ON oraz MA
 		  if(mcu_data[0] == 1){OFF_ON = 1;}
@@ -356,7 +370,16 @@ int main(void)
 
 		  //Odczyt pomiarow z enkoderow na masterze
 		  pomiar_przod_lewy = (int16_t)((mcu_data[3] << 8) | mcu_data[2]);
+		  if(mot_przod_lewy.DIRECTION == DIR_CCW)
+		  {
+			  pomiar_przod_lewy = -pomiar_przod_lewy;
+		  }
 		  pomiar_przod_prawy = (int16_t)((mcu_data[5] << 8) | mcu_data[4]);
+		  if(mot_przod_prawy.DIRECTION == DIR_CCW)
+		  {
+			  pomiar_przod_prawy = -pomiar_przod_prawy;
+		  }
+
 		  //Zwrotka z serwo i maksymalna predkosc
 		  pomiar_serwo_kat = (int16_t)((mcu_data[7] << 8) | mcu_data[6]);
 		  I4_Vmax = (int16_t)((mcu_data[13] << 8) | mcu_data[12]);
@@ -377,7 +400,7 @@ int main(void)
 			  else{OFF_ON = 0;}
 		  }
 
-		  if(Stop_AW == 1){
+		  if(STOP_AW == 1){
 			  OFF_ON = 0;
 			  MA = 0;
 		  }
@@ -385,6 +408,7 @@ int main(void)
 		  if(OFF_ON == 0){
 			  I1_V = 0;
 			  I2_OMEGA = 0;
+			  sterowanie_serwo_kat = 0;
 
 			  HAL_GPIO_WritePin(WYLACZNIK_GPIO_Port, WYLACZNIK_Pin, 1);
 		  }
@@ -396,28 +420,33 @@ int main(void)
 		  if (OFF_ON == 1){
 			  if (krancowka == 1){
 				  if (sterowanie_serwo_kat > 0){
-					  I2_OMEGA = sterowanie_serwo_kat - 1;
+					  I2_OMEGA = sterowanie_serwo_kat - 2;
+
 				  }
 				  else{
-					  I2_OMEGA = sterowanie_serwo_kat + 1;
+					  I2_OMEGA = sterowanie_serwo_kat + 2;
 				  }
 			  }
+			  else{sterowanie_serwo_kat = I2_OMEGA;}
 
 			  //Sprawdzenie ograniczeń predkosci
 			  if (I1_V > 0){
 				  if(I1_V > I4_Vmax){
 					  I1_V = I4_Vmax;
+
 				  }
 			  }
 			  else if(I1_V < -I4_Vmax){
 				  I1_V = -I4_Vmax;
 			  }
 		  }
-		  __HAL_TIM_SetCompare(PWM_TIMER_SERWO, CH_SERWO,I2_OMEGA);
-		  sterowanie_serwo_kat = I2_OMEGA;
 
-		  setpoint_przod_lewy = I1_V;
-		  setpoint_przod_prawy = I1_V;
+		  if(I2_OMEGA >= 0){HAL_GPIO_WritePin(DIR_SERWO_GPIO_Port, DIR_SERWO_Pin, 0);}
+		  else{HAL_GPIO_WritePin(DIR_SERWO_GPIO_Port, DIR_SERWO_Pin, 1);}
+		  __HAL_TIM_SetCompare(PWM_TIMER_SERWO, CH_SERWO,abs(I2_OMEGA));
+
+		  setpoint_przod_lewy = przelicz_kat(I1_V,0);
+		  setpoint_przod_prawy = przelicz_kat(I1_V,1);
 		  setpoint_tyl_lewy = I1_V;
 		  setpoint_tyl_prawy = I1_V;
 
@@ -451,7 +480,7 @@ int main(void)
 			  pc_send_data[21] = 0;
 		  }
 		  else{pc_send_data[21] = 3;}
-		  HAL_UART_Transmit(PC_UART, pc_send_data, PC_SEND_LEN, 100);
+		  HAL_UART_Transmit(PC_UART, pc_send_data, PC_SEND_LEN, 200);
 
 	  }
 	  /*
@@ -569,11 +598,15 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
-/*
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
 	//if(huart == IBUS_UART) { ibus_reset_failsafe();}
-}*/
+	/*if(huart == MCU_UART) {
+		UART_flaga = 1;
+		recv_mcu = HAL_UART_Receive_IT(MCU_UART,mcu_data,sizeof(mcu_data));}
+*/
+}
 
 void HAL_TIM_PeriodElapsedCallback (TIM_HandleTypeDef* htim)
 {
@@ -594,6 +627,71 @@ int16_t to_process_range(int16_t input)
 	else if (out < -Counter_20kHz_360) { out = -Counter_20kHz_360; }
 
 	return out;
+}
+int16_t przelicz_kat(int16_t setpoint, bool L_P){
+	bool dir;
+	float stosunek;
+	float predkosc;
+
+	int16_t tmp = (setpoint * SERWO_SCALE_MAX) / Counter_20kHz_360;
+	if(setpoint >= 0){
+		dir = 0;
+	}
+	else{dir = 1;}
+
+	r1 = (L1*cos(tmp) + L2)/sin(tmp);
+	r2 = (L2*cos(tmp) + L1)/sin(tmp);
+
+	predkosc = (float)( (((float)tmp) * (r1 - ( ((float)L_ADD) /2.0) )) / r2);
+	stosunek = (r1 + ( ((float)L_ADD) /2.0))/(r1 - ( ((float)L_ADD) /2.0) );
+
+	if( (L_P == 0) && (dir == 0) ){
+		return (int16_t)(stosunek*predkosc);
+	}
+	else if( (L_P == 0) && (dir == 1) ){
+			return (int16_t)(predkosc);
+	}
+	else if( (L_P == 1) && (dir == 1) ){
+			return (int16_t)(stosunek*predkosc);
+	}
+	else if( (L_P == 1) && (dir == 0) ){
+			return (int16_t)(predkosc);
+	}
+	else{return 0;}
+}
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+    if(GPIO_Pin == STOP_AW_Pin)
+    {
+    	if(HAL_GPIO_ReadPin(STOP_AW_GPIO_Port, STOP_AW_Pin) == GPIO_PIN_SET){
+    		STOP_AW = 1;
+    	}
+    	if(HAL_GPIO_ReadPin(STOP_AW_GPIO_Port, STOP_AW_Pin) == GPIO_PIN_RESET){
+    	    STOP_AW = 0;
+    	}
+
+    }
+
+    if(GPIO_Pin == KRANCOWKA_1_Pin)
+    {
+    	if((HAL_GPIO_ReadPin(KRANCOWKA_1_GPIO_Port, KRANCOWKA_1_Pin) == GPIO_PIN_SET) || (HAL_GPIO_ReadPin(KRANCOWKA_2_GPIO_Port, KRANCOWKA_2_Pin) == GPIO_PIN_SET)){
+    		krancowka = 1;
+    	}
+    	if((HAL_GPIO_ReadPin(KRANCOWKA_1_GPIO_Port, KRANCOWKA_1_Pin) == GPIO_PIN_RESET) && (HAL_GPIO_ReadPin(KRANCOWKA_2_GPIO_Port, KRANCOWKA_2_Pin) == GPIO_PIN_RESET)){
+    		krancowka = 0;
+    	}
+    }
+
+    if(GPIO_Pin == KRANCOWKA_2_Pin)
+    {
+    	if((HAL_GPIO_ReadPin(KRANCOWKA_1_GPIO_Port, KRANCOWKA_1_Pin) == GPIO_PIN_SET) || (HAL_GPIO_ReadPin(KRANCOWKA_2_GPIO_Port, KRANCOWKA_2_Pin) == GPIO_PIN_SET)){
+    		krancowka = 1;
+    	}
+    	if((HAL_GPIO_ReadPin(KRANCOWKA_1_GPIO_Port, KRANCOWKA_1_Pin) == GPIO_PIN_RESET) && (HAL_GPIO_ReadPin(KRANCOWKA_2_GPIO_Port, KRANCOWKA_2_Pin) == GPIO_PIN_RESET)){
+    		krancowka = 0;
+    	}
+    }
+
 }
 /*
 int16_t to_communication_range(int16_t input, int16_t replacement)

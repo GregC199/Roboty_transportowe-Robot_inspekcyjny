@@ -8,15 +8,15 @@
 #ifndef INC_MOT_H_
 #define INC_MOT_H_
 
-#define ENCODER_RESOLUTION 1.0
+#define ENCODER_RESOLUTION 1024.0
 #define TIMER_COUNTS 4.0
-#define GEAR_RATIO 1.0 //9.78
+#define GEAR_RATIO 1.78 //9.78
 #define SEC_IN_MIN 60.0
 #define MOT_RPM_TO_1000PROMILE 0.3 //300 rpm; 3000 rated motor
 #define DIR_CW 0
 #define DIR_CCW 1
 #define DIR_STOP 2
-#define SMOOTHING 40
+#define SMOOTHING 20
 
 #include <stdint.h>
 #include "tim.h"
