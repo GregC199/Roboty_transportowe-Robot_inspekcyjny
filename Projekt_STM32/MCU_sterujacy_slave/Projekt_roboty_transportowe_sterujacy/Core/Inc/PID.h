@@ -33,10 +33,10 @@ typedef struct {
 
 	int16_t control;
 	int16_t power;
-	float dt_ms;
+	float dt;
 
 } PID_t;
-void pid_init(PID_t* pid, float p, float i, float d, float dt_ms, int16_t power);
+void pid_init(PID_t* pid, float p, float i, float d, float dt, int16_t power);
 int16_t pid_calc(PID_t * pid, int16_t mv, int16_t dv);
 void pid_scaling(PID_t* pid, float pid_max, float pid_min, float total_max, float total_min);
 #endif /* INC_PID_H_ */

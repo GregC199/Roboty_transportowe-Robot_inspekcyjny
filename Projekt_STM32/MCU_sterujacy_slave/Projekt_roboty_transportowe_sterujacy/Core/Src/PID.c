@@ -6,7 +6,7 @@
  */
 #include "PID.h"
 
-void pid_init(PID_t * pid, float p, float i, float d, float dt_ms, int16_t power) {
+void pid_init(PID_t * pid, float p, float i, float d, float dt, int16_t power) {
 
 	pid->p = p;
 	pid->i = i;
@@ -23,7 +23,7 @@ void pid_init(PID_t * pid, float p, float i, float d, float dt_ms, int16_t power
 	pid->e_last = 0.0;
 	pid->sum = 0.0;
 
-	pid->dt_ms = dt_ms;
+	pid->dt = dt;
 
 	pid->power = power;
 
@@ -50,7 +50,7 @@ int16_t pid_calc(PID_t * pid, int16_t mv, int16_t dv) {
 
 	//I
 	i = pid->sum;
-	i += pid->dt_ms * e / pid->i;
+	i += pid->dt * e / pid->i;
 	if (i > pid->PID_max_val)
 	i = pid->PID_max_val;
 	else if (i < pid->PID_min_val)
@@ -58,7 +58,7 @@ int16_t pid_calc(PID_t * pid, int16_t mv, int16_t dv) {
 	pid->sum = i;
 
 	//D
-	d = ((e - pid->e_last) * pid->d)/pid->dt_ms;
+	d = ((e - pid->e_last) * pid->d)/pid->dt;
 	if (d > pid->PID_max_val)
 	d = pid->PID_max_val;
 	else if (d < pid->PID_min_val)

@@ -71,7 +71,7 @@
 #define CW 0
 #define CCW 1
 
-#define PID_POWER 100
+#define PID_POWER 1.0
 
 #define CH_TYL_LEWY                        0x00000000U                          /*!< Capture/compare channel 1 identifier      */
 #define CH_TYL_PRAWY                       0x00000004U                          /*!< Capture/compare channel 2 identifier      */
@@ -80,8 +80,8 @@
 
 #define CH_SERWO                        0x00000000U
 
-#define KP 0.5
-#define TI 2.0
+#define KP 1.0
+#define TI 1.0
 #define TD 0.0
 
 #define L1 43.0
@@ -158,7 +158,7 @@ PID_t Pid_przod_prawy;
 motor mot_przod_lewy;
 motor mot_przod_prawy;
 
-int16_t ms = 50;
+float ms = 0.1;
 
 int16_t I1_V = 0;
 int16_t I2_OMEGA = 0;
@@ -231,7 +231,7 @@ int main(void)
   __HAL_UART_ENABLE_IT(MCU_UART, UART_IT_TC);
 
   //Pid inicjalizacja
-  ms = (int16_t)1000/PID_HZ;
+  ms = 1.0/(PID_HZ);
   pid_init(&Pid_tyl_lewy, KP, TI, TD, ms,PID_POWER);
   pid_scaling(&Pid_tyl_lewy, Counter_20kHz_360, -Counter_20kHz_360, Counter_20kHz_360, -Counter_20kHz_360);
   pid_init(&Pid_tyl_prawy, KP, TI, TD, ms,PID_POWER);
@@ -276,6 +276,38 @@ int main(void)
 		  //STEROWANIE DLA TRYBU AUTOMATYCZNEGO
 		  //if(MA == 1){  TU I NA KONCU ZAKOMENTOWANE
 		  if (I1_V != 0){
+
+			  if(sterowanie_tyl_lewy > I4_Vmax){
+				  sterowanie_tyl_lewy = I4_Vmax;
+
+			  }
+			  else if(sterowanie_tyl_lewy < -I4_Vmax){
+				  sterowanie_tyl_lewy = -I4_Vmax;
+			  }
+			  if(sterowanie_tyl_prawy > I4_Vmax){
+				  sterowanie_tyl_prawy = I4_Vmax;
+
+			  }
+			  else if(sterowanie_tyl_prawy < -I4_Vmax){
+				  sterowanie_tyl_prawy = -I4_Vmax;
+			  }
+
+			  if(sterowanie_przod_lewy > I4_Vmax){
+				  sterowanie_przod_lewy = I4_Vmax;
+
+			  }
+			  else if(sterowanie_przod_lewy < -I4_Vmax){
+				  sterowanie_przod_lewy = -I4_Vmax;
+			  }
+			  if(sterowanie_przod_prawy > I4_Vmax){
+				  sterowanie_przod_prawy = I4_Vmax;
+
+			  }
+			  else if(sterowanie_przod_prawy < -I4_Vmax){
+				  sterowanie_przod_prawy = -I4_Vmax;
+			  }
+
+
 
 			  set_motor_dir(&mot_tyl_lewy,sterowanie_tyl_lewy);
 			  __HAL_TIM_SetCompare(PWM_TIMER_SILNIKI, CH_TYL_LEWY,abs(sterowanie_tyl_lewy));
